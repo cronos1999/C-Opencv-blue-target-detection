@@ -1,0 +1,135 @@
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+#include <iostream>
+
+using namespace cv;
+using namespace std;
+
+void getContours(Mat imgDil, Mat img) {
+
+	vector<vector<Point>> algilananKenarlar;
+	vector<Vec4i> hierarchy;
+
+	findContours(imgDil, algilananKenarlar, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+	vector<vector<Point>> sekilinKoseSayisi(algilananKenarlar.size());
+	vector<Rect> cerceve(algilananKenarlar.size());
+	Point merkez(0, 0);
+	for (int i = 0; i < algilananKenarlar.size(); i++)
+	{
+		int area = contourArea(algilananKenarlar[i]);
+
+		if (area > 1000)
+		{
+			float peri = arcLength(algilananKenarlar[i], true);
+			approxPolyDP(algilananKenarlar[i], sekilinKoseSayisi[i], 0.02 * peri, true);
+			cerceve[i] = boundingRect(sekilinKoseSayisi[i]);
+
+			int objCor = (int)sekilinKoseSayisi[i].size();
+			cout << objCor << endl;
+			if (objCor > 7)
+			{
+				/*drawContours(img, sekilinKoseSayisi, i, Scalar(255, 0, 255), 2);
+				rectangle(img, cerceve[i].tl(), cerceve[i].br(), Scalar(0, 255, 0), 3);*/
+				
+				putText(img, "Havuz", { cerceve[i].x,cerceve[i].y - 7 }, FONT_HERSHEY_PLAIN, 1, Scalar(0, 255, 0), 2);
+				merkez.x = cerceve[i].x + cerceve[i].width / 2;
+				merkez.y = cerceve[i].y + cerceve[i].height / 2;
+				circle(img, merkez, cerceve[i].width / 2, Scalar(0, 255, 0), 3);
+				circle(img, merkez, 0, Scalar(255, 255, 255),5);
+				cout << merkez << endl;
+				if (300 < merkez.x && merkez.x< 340 && 220 < merkez.y && merkez.y< 260)
+					putText(img, "Hedefe Kilitlenildi", Point(10, 450), FONT_HERSHEY_COMPLEX, 1, Scalar(0, 255, 0), 2);
+				else if (merkez.x <= 320 && merkez.y <= 240)
+				{
+					line(img, merkez, Point(320, 240), Scalar(13, 13, 240), 2);
+					putText(img, "Hedef Sol Ustte", Point(25, 450), FONT_HERSHEY_COMPLEX, 1, Scalar(0, 255, 0), 2);
+				}
+					
+				else if (merkez.x <= 320 && merkez.y > 240)
+				{
+					line(img, merkez, Point(320, 240), Scalar(13, 13, 240), 2);
+					putText(img, "Hedef Sol Altta", Point(25, 450), FONT_HERSHEY_COMPLEX, 1, Scalar(0, 255, 0), 2);
+				}
+					
+				else if (merkez.x > 320 && merkez.y <= 240)
+				{
+					line(img, merkez, Point(320, 240), Scalar(13, 13, 240), 2);
+					putText(img, "Hedef Sag Ustte", Point(25, 450), FONT_HERSHEY_COMPLEX, 1, Scalar(0, 255, 0), 2);
+				}
+					
+				else if (merkez.x > 320 && merkez.y > 240)
+				{
+					line(img, merkez, Point(320, 240), Scalar(13, 13, 240), 2);
+					putText(img, "Hedef Sag Altta", Point(25, 450), FONT_HERSHEY_COMPLEX, 1, Scalar(0, 255, 0), 2);
+				}
+					
+				
+
+
+			}
+		}
+	}
+}
+void main() {
+
+	int hmin=81, smin=91, vmin=81, hmax=122, smax=255, vmax=255;
+	VideoCapture cap(0);
+	Mat img, imgGray, imgBlur, imgCanny, imgDil, imgErode, imgHSV, mask;
+
+
+	while (true) 
+	{
+		cap.read(img);
+		flip(img, img, 1);
+
+
+		//HSV Uzayi Renk Belirleme
+
+		namedWindow("Trackbars", WINDOW_AUTOSIZE);
+		createTrackbar("Hue min", "Trackbars", &hmin, 179);
+		createTrackbar("Hue max", "Trackbars", &hmax, 179);
+		createTrackbar("Sat min", "Trackbars", &smin, 255);
+		createTrackbar("Sat max", "Trackbars", &smax, 255);
+		createTrackbar("Val min", "Trackbars", &vmin, 255);
+		createTrackbar("Val max", "Trackbars", &vmax, 255);
+
+		////Renk Maskeleme
+
+		cvtColor(img, imgHSV, COLOR_BGR2HSV);
+		Scalar lower(hmin, smin, vmin);
+		Scalar upper(hmax, smax, vmax);
+		inRange(imgHSV, lower, upper, mask);
+
+		//Kenar Bulma
+
+		GaussianBlur(mask, imgBlur, Size(7, 7), 4, 0);
+		Canny(imgBlur, imgCanny, 25, 75);
+		Mat kernel = getStructuringElement(MORPH_RECT, Size(3, 3));
+		dilate(imgCanny, imgDil, kernel);
+		getContours(imgDil, img);
+
+		// kozmetikler
+		circle(img, Point(320, 240), 40, Scalar(255, 255, 255), 1);
+		circle(img, Point(320, 240), 3, Scalar(255, 255, 255), 1);
+		line(img, Point(320, 0), Point(320, 200), Scalar(255, 255, 255), 1);
+		line(img, Point(0, 240), Point(280, 240), Scalar(255, 255, 255), 1);
+		line(img, Point(320, 280), Point(320, 480), Scalar(255, 255, 255), 1);
+		line(img, Point(360, 240), Point(640, 240), Scalar(255, 255, 255), 1);
+		line(img, Point(320, 230), Point(320, 250), Scalar(255, 255, 255), 1);
+		line(img, Point(310, 240), Point(330, 240), Scalar(255, 255, 255), 1);
+
+		
+		imshow("mask", mask);
+		imshow("meraba", img);
+		imshow("", imgHSV);
+		//imshow("", imgBlur);
+		//imshow("", imgCanny);
+		//imshow("", imgDil);
+		//imshow("", imgErode);
+
+
+	waitKey(1);
+	}
+}
